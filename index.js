@@ -73,14 +73,6 @@ const resolutionUniformLocation = gl.getUniformLocation(program, "u_resolution")
 const vertexBuffer = gl.createBuffer();
 gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
 
-const vertices = new Float32Array([
-    100, 100,    1, 0, 0,
-    100, 700,    0, 1, 0,
-    700, 700,    0, 0, 1,
-]);
-
-gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
-
 const vao = gl.createVertexArray();
 
 gl.bindVertexArray(vao);
@@ -98,36 +90,6 @@ gl.clear(gl.COLOR_BUFFER_BIT);
 
 gl.useProgram(program);
 gl.uniform2f(resolutionUniformLocation, gl.canvas.width, gl.canvas.height);
-
-// gl.drawArrays(gl.TRIANGLES, 0, vertices.length);
-
-for (let ii = 0; ii < 128; ++ii) {
-    const x = randomInt(800);
-    const y = randomInt(800);
-    const width = randomInt(400);
-    const height = randomInt(400);
-    const x1 = x - width / 2;
-    const x2 = x + width / 2;
-    const y1 = y - height / 2;
-    const y2 = y + height / 2;
-    const r = Math.random();
-    const g = Math.random();
-    const b = Math.random();
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-        x1, y1, r, g, b,
-        x2, y1, r, g, b,
-        x1, y2, r, g, b,
-        x1, y2, r, g, b,
-        x2, y1, r, g, b,
-        x2, y2, r, g, b,
-    ]), gl.DYNAMIC_DRAW);
-
-    gl.drawArrays(gl.TRIANGLES, 0, 6);
-}
-
-function randomInt(range) {
-  return Math.floor(Math.random() * range);
-}
 
 let memory;
 const imports = {
@@ -156,7 +118,6 @@ const mouseState = {
 function handleClick(e) {
     e.preventDefault();
     click(e.offsetX, e.offsetY, e.button);
-    frame();
 }
 
 canvas.addEventListener('click', handleClick);
@@ -172,3 +133,11 @@ canvas.addEventListener('mousemove', (e) => {
 canvas.addEventListener('mouseout', () => {
     mouseState.mouseInside = false;
 });
+
+function browserFrame() {
+    frame();
+
+    requestAnimationFrame(browserFrame);
+}
+
+browserFrame();
