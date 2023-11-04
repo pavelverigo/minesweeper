@@ -1,6 +1,10 @@
 const canvas = document.getElementById("game");
 
-const gl = canvas.getContext("webgl2");
+const gl = canvas.getContext("webgl2",{
+    antialias: true,
+    depth: false,
+    preserveDrawingBuffer: true,
+});
 
 const vertexShaderSource = `#version 300 es
 
@@ -116,11 +120,55 @@ for (let ii = 0; ii < 128; ++ii) {
         x1, y2, r, g, b,
         x2, y1, r, g, b,
         x2, y2, r, g, b,
-    ]), gl.DYNAMIC_READ);
+    ]), gl.DYNAMIC_DRAW);
 
-    gl.drawArrays(gl.TRIANGLES, 0, 20);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
 }
 
 function randomInt(range) {
   return Math.floor(Math.random() * range);
 }
+
+let memory;
+const imports = {
+    env: {
+        draw: (offset, vertexCount) => {
+            gl.clear(gl.COLOR_BUFFER_BIT);
+
+            const v = new Float32Array(memory.buffer, offset, vertexCount * 5);
+            gl.bufferData(gl.ARRAY_BUFFER, v, gl.DYNAMIC_DRAW);
+            gl.drawArrays(gl.TRIANGLES, 0, vertexCount);
+        },
+    },
+};
+const wasm = await WebAssembly.instantiateStreaming(fetch("zig-out/lib/minesweeper.wasm"), imports);
+memory = wasm.instance.exports.memory;
+
+const frame = wasm.instance.exports.frame;
+const click = wasm.instance.exports.click;
+
+const mouseState = {
+    mouseX: 0,
+    mouseY: 0,
+    mouseInside: false,
+};
+
+function handleClick(e) {
+    e.preventDefault();
+    click(e.offsetX, e.offsetY, e.button);
+    frame();
+}
+
+canvas.addEventListener('click', handleClick);
+canvas.addEventListener('auxclick', handleClick);
+canvas.addEventListener('contextmenu', handleClick);
+
+canvas.addEventListener('mousemove', (e) => {
+    mouseState.mouseX = e.offsetX;
+    mouseState.mouseY = e.offsetY;
+    mouseState.mouseInside = true;
+});
+
+canvas.addEventListener('mouseout', () => {
+    mouseState.mouseInside = false;
+});
