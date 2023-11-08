@@ -15,8 +15,20 @@ const ClickInfo = struct {
 
 var clicks = std.BoundedArray(ClickInfo, 128).init(0) catch unreachable;
 
+export fn init(seed: u32) void {
+    game = Minesweeper.init(seed);
+}
+
 export fn click(x: f32, y: f32, button: Button) void {
     clicks.append(.{ .x = x, .y = y, .button = button }) catch unreachable;
+    const i: u8 = @intFromFloat(@trunc(x / TILE_SIZE));
+    const j: u8 = @intFromFloat(@trunc(y / TILE_SIZE));
+
+    switch (button) {
+        .main => game.open(i, j),
+        .second => game.mark(i, j),
+        else => {},
+    }
 }
 
 const Pos = extern struct {
@@ -217,6 +229,117 @@ fn drawNumberSymbol(num: u8, x: f32, y: f32, scale: f32) void {
 }
 
 const CANVAS_SIZE = 800;
+const TILE_SIZE = @as(f32, CANVAS_SIZE) / Minesweeper.SIZE;
+
+var game: Minesweeper = undefined;
+
+const Minesweeper = struct {
+    map: [SQ_SIZE]bool, // true if bomb
+    view: [SQ_SIZE]ViewState, // true if open
+    finished: bool,
+
+    const ViewState = enum(u32) {
+        closed,
+        opened,
+        marked,
+    };
+
+    const SIZE = 9;
+    const SQ_SIZE = SIZE * SIZE;
+    const MINES = 10;
+
+    fn init(seed: u32) Minesweeper {
+        var map_tmp: [SQ_SIZE]bool = undefined;
+        var view_tmp: [SQ_SIZE]ViewState = undefined;
+        for (0..SQ_SIZE) |i| {
+            map_tmp[i] = false;
+            view_tmp[i] = .closed;
+        }
+        for (0..MINES) |i| {
+            map_tmp[i] = true;
+        }
+
+        var prng = std.rand.DefaultPrng.init(seed);
+        var random = prng.random();
+        random.shuffle(bool, &map_tmp);
+
+        return .{
+            .map = map_tmp,
+            .view = view_tmp,
+            .finished = false,
+        };
+    }
+
+    fn open(m: *Minesweeper, i: u8, j: u8) void {
+        if (m.view[i + j * SIZE] == .closed) {
+            if (m.map[i + j * SIZE]) {
+                m.view[i + j * SIZE] = .opened;
+                m.finished = true;
+            } else {
+                m.cascadeOpen(i, j);
+            }
+        }
+    }
+
+    fn cascadeOpen(m: *Minesweeper, i: u8, j: u8) void {
+        if (m.map[i + j * SIZE]) return;
+        if (m.view[i + j * SIZE] == .opened) return;
+        m.view[i + j * SIZE] = .opened;
+        if (m.count(i, j) == 0) {
+            const dn = .{
+                .{ -1, -1 },
+                .{ 0, -1 },
+                .{ 1, -1 },
+                .{ -1, 0 },
+                .{ 1, 0 },
+                .{ -1, 1 },
+                .{ 0, 1 },
+                .{ 1, 1 },
+            };
+            inline for (dn) |d| {
+                const ci = @as(i32, @intCast(i)) + d[0];
+                const cj = @as(i32, @intCast(j)) + d[1];
+                if (0 <= ci and 0 <= cj and ci < SIZE and cj < SIZE) {
+                    m.cascadeOpen(@intCast(ci), @intCast(cj));
+                }
+            }
+        }
+    }
+
+    fn mark(m: *Minesweeper, i: u8, j: u8) void {
+        switch (m.view[i + j * SIZE]) {
+            .marked => {
+                m.view[i + j * SIZE] = .closed;
+            },
+            .closed => {
+                m.view[i + j * SIZE] = .marked;
+            },
+            else => {},
+        }
+    }
+
+    fn count(m: *Minesweeper, i: u8, j: u8) u32 {
+        var res: u32 = 0;
+        const dn = .{
+            .{ -1, -1 },
+            .{ 0, -1 },
+            .{ 1, -1 },
+            .{ -1, 0 },
+            .{ 1, 0 },
+            .{ -1, 1 },
+            .{ 0, 1 },
+            .{ 1, 1 },
+        };
+        inline for (dn) |d| {
+            const ci = @as(i32, @intCast(i)) + d[0];
+            const cj = @as(i32, @intCast(j)) + d[1];
+            if (0 <= ci and 0 <= cj and ci < SIZE and cj < SIZE) {
+                if (m.map[@intCast(ci + cj * SIZE)]) res += 1;
+            }
+        }
+        return res;
+    }
+};
 
 export fn frame() void {
     vertices_buffer.resize(0) catch unreachable;
@@ -229,36 +352,55 @@ export fn frame() void {
     // };
     // const triangle_size = 20;
 
-    drawRectangle(0, 0, CANVAS_SIZE, CANVAS_SIZE, Palette.LIGHT_GRAY);
+    drawRectangle(0, 0, CANVAS_SIZE, CANVAS_SIZE, Palette.BLACK);
 
-    const rectangle_size = 20;
-    const TILE_SIZE = CANVAS_SIZE / 10;
-
-    inline for (0..10) |i| {
-        inline for (0..10) |j| {
-            drawTile(i * TILE_SIZE, j * TILE_SIZE, TILE_SIZE);
+    for (0..Minesweeper.SIZE) |i| {
+        for (0..Minesweeper.SIZE) |j| {
+            const v = i + j * Minesweeper.SIZE;
+            const x = @as(f32, @floatFromInt(i)) * TILE_SIZE;
+            const y = @as(f32, @floatFromInt(j)) * TILE_SIZE;
+            switch (game.view[v]) {
+                .opened => {
+                    drawRectangle(x, y, TILE_SIZE, TILE_SIZE, Palette.LIGHT_GRAY);
+                    if (game.map[v]) {
+                        drawMine(x, y, TILE_SIZE);
+                    } else {
+                        const cnt = game.count(@intCast(i), @intCast(j));
+                        if (cnt > 0) {
+                            drawNumberSymbol(@intCast(cnt), x, y, TILE_SIZE);
+                        }
+                    }
+                },
+                .closed => {
+                    drawTile(x, y, TILE_SIZE);
+                },
+                .marked => {
+                    drawRectangle(x, y, TILE_SIZE, TILE_SIZE, Palette.BLUE);
+                },
+            }
         }
     }
 
-    drawMine(0, 0, TILE_SIZE);
+    // drawMine(0, 0, TILE_SIZE);
 
-    inline for (1..9) |c| {
-        drawNumberSymbol(c, TILE_SIZE * c, 0, TILE_SIZE);
-    }
+    // inline for (1..9) |c| {
+    //     drawNumberSymbol(c, TILE_SIZE * c, 0, TILE_SIZE);
+    // }
 
-    blk: for (clicks.slice()) |c| {
-        const color = switch (c.button) {
-            .main => Palette.BLUE,
-            .aux => Palette.GREEN,
-            .second => Palette.RED,
-            _ => continue :blk,
-        };
-        const sz = rectangle_size;
-        drawRectangle(c.x - sz / 2, c.y - sz / 2, sz, sz, color);
-        // inline for (triangle) |tv| {
-        //     vertices.append(.{ .x = c.x - tv.x * triangle_size, .y = c.y - tv.y * triangle_size, .color = color }) catch unreachable;
-        // }
-    }
+    // const rectangle_size = 20;
+    // blk: for (clicks.slice()) |c| {
+    //     const color = switch (c.button) {
+    //         .main => Palette.BLUE,
+    //         .aux => Palette.GREEN,
+    //         .second => Palette.RED,
+    //         _ => continue :blk,
+    //     };
+    //     const sz = rectangle_size;
+    //     drawRectangle(c.x - sz / 2, c.y - sz / 2, sz, sz, color);
+    //     // inline for (triangle) |tv| {
+    //     //     vertices.append(.{ .x = c.x - tv.x * triangle_size, .y = c.y - tv.y * triangle_size, .color = color }) catch unreachable;
+    //     // }
+    // }
 
     draw(&vertices_buffer.buffer, vertices_buffer.len);
 }

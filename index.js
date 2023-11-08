@@ -91,6 +91,11 @@ gl.clear(gl.COLOR_BUFFER_BIT);
 gl.useProgram(program);
 gl.uniform2f(resolutionUniformLocation, gl.canvas.width, gl.canvas.height);
 
+function randomU32() {
+    const MAX_U32 = 0xFFFFFFFF;
+    return Math.floor(Math.random() * (MAX_U32 + 1));
+}
+
 let memory;
 const imports = {
     env: {
@@ -108,12 +113,19 @@ memory = wasm.instance.exports.memory;
 
 const frame = wasm.instance.exports.frame;
 const click = wasm.instance.exports.click;
+const init = wasm.instance.exports.init;
+
+init(randomU32());
 
 const mouseState = {
     mouseX: 0,
     mouseY: 0,
     mouseInside: false,
 };
+
+function ignoreEvent(e) {
+    e.preventDefault();
+}
 
 function handleClick(e) {
     e.preventDefault();
@@ -122,7 +134,7 @@ function handleClick(e) {
 
 canvas.addEventListener('click', handleClick);
 canvas.addEventListener('auxclick', handleClick);
-canvas.addEventListener('contextmenu', handleClick);
+canvas.addEventListener('contextmenu', ignoreEvent);
 
 canvas.addEventListener('mousemove', (e) => {
     mouseState.mouseX = e.offsetX;
