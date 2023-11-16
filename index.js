@@ -83,6 +83,9 @@ gl.enableVertexAttribArray(a_position);
 gl.vertexAttribPointer(a_color, 3, gl.FLOAT, false, 20, 8);
 gl.enableVertexAttribArray(a_color);
 
+const indexBuffer = gl.createBuffer();
+gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+
 gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
 
 gl.clearColor(0, 0, 0, 1);
@@ -99,12 +102,23 @@ function randomU32() {
 let memory;
 const imports = {
     env: {
-        draw: (offset, vertexCount) => {
+        drawWASM: (vertexOffset, vertexCount, indexOffset, indexCount) => {
             gl.clear(gl.COLOR_BUFFER_BIT);
 
-            const v = new Float32Array(memory.buffer, offset, vertexCount * 5);
-            gl.bufferData(gl.ARRAY_BUFFER, v, gl.DYNAMIC_DRAW);
-            gl.drawArrays(gl.TRIANGLES, 0, vertexCount);
+            const vertices = new Float32Array(memory.buffer, vertexOffset, vertexCount * 5);
+            const indices = new Uint32Array(memory.buffer, indexOffset, indexCount);
+
+            // console.log(vertices, indices);
+
+            gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.DYNAMIC_DRAW, 0);
+            gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.DYNAMIC_DRAW, 0);
+            gl.drawElements(gl.TRIANGLES, indexCount, gl.UNSIGNED_INT, 0);
+        },
+
+        _print: (pointer, length) => { 
+            const arr = new Uint8Array(memory.buffer, pointer, length);
+            const str = new TextDecoder().decode(arr);
+            console.log(str);
         },
     },
 };

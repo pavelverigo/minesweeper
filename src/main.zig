@@ -1,4 +1,5 @@
 const std = @import("std");
+const d2 = @import("d2.zig");
 
 const Button = enum(u8) {
     main = 0,
@@ -69,8 +70,6 @@ const Vertex = extern struct {
 };
 
 var vertices_buffer = std.BoundedArray(Vertex, 4096).init(0) catch unreachable;
-
-extern fn draw([*]Vertex, usize) void;
 
 fn drawRectangle(x: f32, y: f32, w: f32, h: f32, color: Color) void {
     const triangle_strip = [_]Vertex{
@@ -341,66 +340,42 @@ const Minesweeper = struct {
     }
 };
 
+fn mineCountToSVG(cnt: u32) d2.SVG {
+    inline for (0..9) |i| {
+        const char: u8 = @as(u8, @intCast(i)) + '0';
+        if (i == cnt) return std.enums.nameCast(d2.SVG, "square_" ++ [1]u8{char});
+    }
+    unreachable;
+}
+
 export fn frame() void {
-    vertices_buffer.resize(0) catch unreachable;
-
-    // const r2d = std.math.degreesToRadians;
-    // const triangle: [3]Pos = comptime .{
-    //     .{ .x = @sin(r2d(f32, 0)), .y = @cos(r2d(f32, 0)) },
-    //     .{ .x = @sin(r2d(f32, 120)), .y = @cos(r2d(f32, 120)) },
-    //     .{ .x = @sin(r2d(f32, 240)), .y = @cos(r2d(f32, 240)) },
-    // };
-    // const triangle_size = 20;
-
-    drawRectangle(0, 0, CANVAS_SIZE, CANVAS_SIZE, Palette.BLACK);
+    d2.startFrame();
 
     for (0..Minesweeper.SIZE) |i| {
         for (0..Minesweeper.SIZE) |j| {
             const v = i + j * Minesweeper.SIZE;
             const x = @as(f32, @floatFromInt(i)) * TILE_SIZE;
             const y = @as(f32, @floatFromInt(j)) * TILE_SIZE;
+            const rect = d2.Rect.fromXYWH(x, y, TILE_SIZE, TILE_SIZE);
             switch (game.view[v]) {
                 .opened => {
-                    drawRectangle(x, y, TILE_SIZE, TILE_SIZE, Palette.LIGHT_GRAY);
                     if (game.map[v]) {
-                        drawMine(x, y, TILE_SIZE);
+                        d2.drawSVG(d2.SVG.square_mine_nonhighlight, rect);
                     } else {
                         const cnt = game.count(@intCast(i), @intCast(j));
-                        if (cnt > 0) {
-                            drawNumberSymbol(@intCast(cnt), x, y, TILE_SIZE);
-                        }
+                        const svg = mineCountToSVG(cnt);
+                        d2.drawSVG(svg, rect);
                     }
                 },
                 .closed => {
-                    drawTile(x, y, TILE_SIZE);
+                    d2.drawSVG(d2.SVG.square_unopened, rect);
                 },
                 .marked => {
-                    drawRectangle(x, y, TILE_SIZE, TILE_SIZE, Palette.BLUE);
+                    d2.drawSVG(d2.SVG.square_flag, rect);
                 },
             }
         }
     }
 
-    // drawMine(0, 0, TILE_SIZE);
-
-    // inline for (1..9) |c| {
-    //     drawNumberSymbol(c, TILE_SIZE * c, 0, TILE_SIZE);
-    // }
-
-    // const rectangle_size = 20;
-    // blk: for (clicks.slice()) |c| {
-    //     const color = switch (c.button) {
-    //         .main => Palette.BLUE,
-    //         .aux => Palette.GREEN,
-    //         .second => Palette.RED,
-    //         _ => continue :blk,
-    //     };
-    //     const sz = rectangle_size;
-    //     drawRectangle(c.x - sz / 2, c.y - sz / 2, sz, sz, color);
-    //     // inline for (triangle) |tv| {
-    //     //     vertices.append(.{ .x = c.x - tv.x * triangle_size, .y = c.y - tv.y * triangle_size, .color = color }) catch unreachable;
-    //     // }
-    // }
-
-    draw(&vertices_buffer.buffer, vertices_buffer.len);
+    d2.endFrame();
 }
