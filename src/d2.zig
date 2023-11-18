@@ -51,46 +51,54 @@ fn parseSVGDataFromFile(comptime filename: []const u8) TessellatedSVG {
     var width: f32 = undefined;
     var height: f32 = undefined;
     var view_box: Rect = undefined;
-    var vertices_len: usize = undefined;
+    var vertices_len: u32 = undefined;
     var vertices: [4096]Vertex = undefined;
-    var indices_len: usize = undefined;
+    var indices_len: u32 = undefined;
     var indices: [4096]u32 = undefined;
 
-    var it = std.mem.tokenizeAny(u8, svg_file, " \n");
+    var offset = 0;
+
+    const bytesAsValue = std.mem.bytesAsValue;
 
     {
-        width = std.fmt.parseFloat(f32, TODOcos(it.next().?)) catch unreachable;
-        height = std.fmt.parseFloat(f32, TODOcos(it.next().?)) catch unreachable;
+        width = bytesAsValue(f32, svg_file[offset..][0..4]).*;
+        height = bytesAsValue(f32, svg_file[offset..][4..8]).*;
+        offset += 8;
 
-        view_box.l = std.fmt.parseFloat(f32, TODOcos(it.next().?)) catch unreachable;
-        view_box.t = std.fmt.parseFloat(f32, TODOcos(it.next().?)) catch unreachable;
-        view_box.r = std.fmt.parseFloat(f32, TODOcos(it.next().?)) catch unreachable;
-        view_box.b = std.fmt.parseFloat(f32, TODOcos(it.next().?)) catch unreachable;
+        view_box.l = bytesAsValue(f32, svg_file[offset..][0..4]).*;
+        view_box.t = bytesAsValue(f32, svg_file[offset..][4..8]).*;
+        view_box.r = bytesAsValue(f32, svg_file[offset..][8..12]).*;
+        view_box.b = bytesAsValue(f32, svg_file[offset..][12..16]).*;
+        offset += 16;
     }
 
     {
-        vertices_len = std.fmt.parseInt(usize, it.next().?, 10) catch unreachable;
+        vertices_len = bytesAsValue(u32, svg_file[offset..][0..4]).*;
+        offset += 4;
 
         var i: usize = 0;
         while (i < vertices_len) {
-            vertices[i].x = std.fmt.parseFloat(f32, TODOcos(it.next().?)) catch unreachable;
-            vertices[i].y = std.fmt.parseFloat(f32, TODOcos(it.next().?)) catch unreachable;
+            vertices[i].x = bytesAsValue(f32, svg_file[offset..][0..4]).*;
+            vertices[i].y = bytesAsValue(f32, svg_file[offset..][4..8]).*;
 
-            vertices[i].r = std.fmt.parseFloat(f32, TODOcos(it.next().?)) catch unreachable;
-            vertices[i].g = std.fmt.parseFloat(f32, TODOcos(it.next().?)) catch unreachable;
-            vertices[i].b = std.fmt.parseFloat(f32, TODOcos(it.next().?)) catch unreachable;
+            vertices[i].r = bytesAsValue(f32, svg_file[offset..][8..12]).*;
+            vertices[i].g = bytesAsValue(f32, svg_file[offset..][12..16]).*;
+            vertices[i].b = bytesAsValue(f32, svg_file[offset..][16..20]).*;
 
+            offset += 24;
             i += 1;
         }
     }
 
     {
-        indices_len = std.fmt.parseInt(usize, it.next().?, 10) catch unreachable;
+        indices_len = bytesAsValue(u32, svg_file[offset..][0..4]).*;
+        offset += 4;
 
         var i: usize = 0;
         while (i < indices_len) {
-            indices[i] = std.fmt.parseInt(u32, it.next().?, 10) catch unreachable;
+            indices[i] = bytesAsValue(u32, svg_file[offset..][0..4]).*;
 
+            offset += 4;
             i += 1;
         }
     }
@@ -105,7 +113,7 @@ fn parseSVGDataFromFile(comptime filename: []const u8) TessellatedSVG {
 }
 
 const generated_svg_data_tuple = blk: {
-    @setEvalBranchQuota(1000000);
+    @setEvalBranchQuota(50000);
 
     const tess_filenames = .{
         "square_mine_nonhighlight",
