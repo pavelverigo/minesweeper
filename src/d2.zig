@@ -36,14 +36,6 @@ const TessellatedSVG = struct {
     indices: []const u32,
 };
 
-// https://github.com/ziglang/zig/issues/17662
-fn TODOcos(s: []const u8) []const u8 {
-    if (s.len > 6) {
-        return s[0..6];
-    }
-    return s;
-}
-
 fn parseSVGDataFromFile(comptime filename: []const u8) TessellatedSVG {
     const svg_file = @embedFile(filename);
 
@@ -129,6 +121,7 @@ const generated_svg_data_tuple = blk: {
         "square_7",
         "square_8",
         "square_flag",
+        "square_wrong_flag",
     };
 
     var fields: [128]std.builtin.Type.EnumField = undefined;
